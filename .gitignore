@@ -3,6 +3,8 @@ backend/.env
 backend/storage/database.sqlite
 backend/storage/*.sqlite
 backend/vendor/
+backend/storage/uploads/*
+!backend/storage/uploads/.gitkeep
 
 # Frontend
 frontend/.next/

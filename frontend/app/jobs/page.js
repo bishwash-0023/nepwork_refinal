@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { isAuthenticated } from '@/lib/auth';
 import Navbar from '@/components/layout/navbar';
@@ -13,17 +13,34 @@ import { Badge } from '@/components/ui/badge';
 
 export default function JobsPage() {
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated()) {
+    setMounted(true);
+    const authStatus = isAuthenticated();
+    setAuthenticated(authStatus);
+    
+    if (!authStatus) {
       router.push('/login');
     }
   }, [router]);
 
-  const { data, error, isLoading } = useSWR('/jobs', () => jobsAPI.getAll({ status: 'open' }));
+  const { data, error, isLoading } = useSWR(
+    authenticated ? '/jobs' : null,
+    () => jobsAPI.getAll({ status: 'open' })
+  );
 
-  if (!isAuthenticated()) {
-    return null;
+  // Show loading state during hydration
+  if (!mounted || !authenticated) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Navbar />
+        <div className="container mx-auto px-4 py-8">
+          <div>Loading...</div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -39,7 +56,16 @@ export default function JobsPage() {
 
         <div className="grid gap-4">
           {data?.data?.data?.jobs?.map((job) => (
-            <Card key={job.id} className="hover:shadow-lg transition-shadow">
+            <Card key={job.id} className="hover:shadow-lg transition-shadow overflow-hidden">
+              {job.image_path && (
+                <div className="w-full h-48 overflow-hidden">
+                  <img
+                    src={job.image_path.startsWith('http') ? job.image_path : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5135'}/api/${job.image_path}`}
+                    alt={job.title}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )}
               <CardHeader>
                 <div className="flex justify-between items-start">
                   <div>
@@ -54,7 +80,7 @@ export default function JobsPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <p className="text-gray-700 mb-4">{job.description}</p>
+                <p className="text-gray-700 mb-4 line-clamp-2">{job.description}</p>
                 <div className="flex justify-between items-center">
                   <span className="text-lg font-semibold text-primary">
                     Budget: ${job.budget}

@@ -83,5 +83,15 @@ export const adminAPI = {
   deleteJob: (id) => api.delete(`/admin/jobs/${id}`),
 };
 
+// Upload API
+export const uploadAPI = {
+  uploadImage: (formData) => api.post('/upload/image', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  }),
+  deleteImage: (path) => api.delete('/upload/image', { data: { path } }),
+};
+
 export default api;
 

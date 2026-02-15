@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ImageUpload } from '@/components/ui/image-upload';
 import { toast } from 'sonner';
 
 const jobSchema = z.object({
@@ -23,6 +24,10 @@ const jobSchema = z.object({
 export default function NewJobPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [imageData, setImageData] = useState(null);
+  const [mounted, setMounted] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [role, setRole] = useState(null);
 
   const {
     register,
@@ -32,10 +37,35 @@ export default function NewJobPage() {
     resolver: zodResolver(jobSchema),
   });
 
+  useEffect(() => {
+    setMounted(true);
+    const authStatus = isAuthenticated();
+    setAuthenticated(authStatus);
+    setRole(getUserRole());
+    
+    if (!authStatus) {
+      router.push('/login');
+      return;
+    }
+    
+    const userRole = getUserRole();
+    if (userRole !== 'client' && userRole !== 'admin') {
+      router.push('/dashboard');
+    }
+  }, [router]);
+
+  const handleImageUploaded = (data) => {
+    setImageData(data);
+  };
+
   const onSubmit = async (data) => {
     setLoading(true);
     try {
-      await jobsAPI.create(data);
+      const jobData = {
+        ...data,
+        image_path: imageData?.path || null,
+      };
+      await jobsAPI.create(jobData);
       toast.success('Job posted successfully!');
       router.push('/dashboard');
     } catch (error) {
@@ -45,14 +75,18 @@ export default function NewJobPage() {
     }
   };
 
-  if (typeof window !== 'undefined' && !isAuthenticated()) {
-    router.push('/login');
-    return null;
+  if (!mounted || !authenticated) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Navbar />
+        <div className="container mx-auto px-4 py-8">
+          <div>Loading...</div>
+        </div>
+      </div>
+    );
   }
 
-  const role = getUserRole();
   if (role !== 'client' && role !== 'admin') {
-    router.push('/dashboard');
     return null;
   }
 
@@ -105,6 +139,13 @@ export default function NewJobPage() {
                 {errors.budget && (
                   <p className="text-sm text-destructive">{errors.budget.message}</p>
                 )}
+              </div>
+
+              <div className="space-y-2">
+                <ImageUpload
+                  onImageUploaded={handleImageUploaded}
+                  label="Job Image (Optional)"
+                />
               </div>
 
               <div className="flex gap-2">

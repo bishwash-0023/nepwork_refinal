@@ -130,6 +130,31 @@ try {
         handleDeleteJob($matches[1]);
     }
     
+    // Upload routes
+    elseif ($path === 'upload/image' && $method === 'POST') {
+        require_once __DIR__ . '/routes/upload.php';
+        handleUploadImage();
+    }
+    
+    elseif ($path === 'upload/image' && $method === 'DELETE') {
+        require_once __DIR__ . '/routes/upload.php';
+        handleDeleteImage();
+    }
+    
+    // Static file serving for uploads
+    elseif (preg_match('/^storage\/uploads\/(.+)$/', $path, $matches) && $method === 'GET') {
+        $filePath = __DIR__ . '/storage/uploads/' . $matches[1];
+        if (file_exists($filePath) && is_file($filePath)) {
+            $mimeType = mime_content_type($filePath);
+            header('Content-Type: ' . $mimeType);
+            header('Content-Length: ' . filesize($filePath));
+            readfile($filePath);
+            exit();
+        } else {
+            sendNotFound('File not found');
+        }
+    }
+    
     // 404 - Route not found
     else {
         sendNotFound('API endpoint not found');

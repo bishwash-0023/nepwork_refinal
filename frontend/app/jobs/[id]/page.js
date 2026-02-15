@@ -16,10 +16,12 @@ export default function JobDetailPage() {
   const params = useParams();
   const jobId = params.id;
   const [role, setRole] = useState(null);
+  const [mounted, setMounted] = useState(false);
   const [showProposalForm, setShowProposalForm] = useState(false);
   const [proposalData, setProposalData] = useState({ bid_amount: '', cover_letter: '' });
 
   useEffect(() => {
+    setMounted(true);
     if (!isAuthenticated()) {
       router.push('/login');
     } else {
@@ -43,6 +45,18 @@ export default function JobDetailPage() {
   );
 
   const job = jobData?.data?.data;
+
+  // Show loading during hydration
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Navbar />
+        <div className="container mx-auto px-4 py-8">
+          <p>Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleSubmitProposal = async (e) => {
     e.preventDefault();
@@ -81,11 +95,26 @@ export default function JobDetailPage() {
     );
   }
 
+  const getImageUrl = (imagePath) => {
+    if (!imagePath) return null;
+    if (imagePath.startsWith('http')) return imagePath;
+    return `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5135'}/api/${imagePath}`;
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
       <div className="container mx-auto px-4 py-8">
-        <Card className="mb-6">
+        <Card className="mb-6 overflow-hidden">
+          {job.image_path && (
+            <div className="w-full h-64 md:h-96 overflow-hidden">
+              <img
+                src={getImageUrl(job.image_path)}
+                alt={job.title}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          )}
           <CardHeader>
             <div className="flex justify-between items-start">
               <div>
@@ -96,7 +125,7 @@ export default function JobDetailPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <p className="text-gray-700 mb-4">{job.description}</p>
+            <p className="text-gray-700 mb-4 whitespace-pre-wrap">{job.description}</p>
             <div className="flex gap-4">
               <span className="text-lg font-semibold text-primary">
                 Budget: ${job.budget}

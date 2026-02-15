@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { isAuthenticated, hasRole } from '@/lib/auth';
 import Navbar from '@/components/layout/navbar';
@@ -12,9 +12,15 @@ import { toast } from 'sonner';
 
 export default function AdminPage() {
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
+  const [authorized, setAuthorized] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated() || !hasRole('admin')) {
+    setMounted(true);
+    const authStatus = isAuthenticated() && hasRole('admin');
+    setAuthorized(authStatus);
+    
+    if (!authStatus) {
       router.push('/dashboard');
     }
   }, [router]);
@@ -53,8 +59,15 @@ export default function AdminPage() {
     }
   };
 
-  if (!isAuthenticated() || !hasRole('admin')) {
-    return null;
+  if (!mounted || !authorized) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Navbar />
+        <div className="container mx-auto px-4 py-8">
+          <div>Loading...</div>
+        </div>
+      </div>
+    );
   }
 
   return (

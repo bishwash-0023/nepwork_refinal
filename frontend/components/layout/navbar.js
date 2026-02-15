@@ -11,8 +11,10 @@ export default function Navbar() {
   const router = useRouter();
   const [user, setUserState] = useState(null);
   const [role, setRole] = useState(null);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     const userData = getUser();
     const userRole = getUserRole();
     setUserState(userData);
@@ -33,7 +35,7 @@ export default function Navbar() {
           </Link>
 
           <div className="flex items-center gap-4">
-            {user ? (
+            {mounted && user ? (
               <>
                 <Link href="/dashboard">
                   <Button variant="ghost">Dashboard</Button>
@@ -51,7 +53,17 @@ export default function Navbar() {
                   Logout
                 </Button>
               </>
+            ) : mounted ? (
+              <>
+                <Link href="/login">
+                  <Button variant="ghost">Login</Button>
+                </Link>
+                <Link href="/register">
+                  <Button>Register</Button>
+                </Link>
+              </>
             ) : (
+              // Show default state during SSR to prevent hydration mismatch
               <>
                 <Link href="/login">
                   <Button variant="ghost">Login</Button>

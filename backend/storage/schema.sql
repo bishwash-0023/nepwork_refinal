@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     description TEXT NOT NULL,
     budget DECIMAL(10, 2) NOT NULL,
     status VARCHAR(20) DEFAULT 'open',
+    image_path VARCHAR(500),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (client_id) REFERENCES users(id) ON DELETE CASCADE
 );

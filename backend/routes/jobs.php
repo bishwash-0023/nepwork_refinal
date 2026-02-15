@@ -128,9 +128,11 @@ function handleCreateJob() {
     $pdo = getDbConnection();
     
     try {
+        $imagePath = isset($data['image_path']) ? $data['image_path'] : null;
+        
         $stmt = $pdo->prepare("
-            INSERT INTO jobs (client_id, title, description, budget, status, created_at)
-            VALUES (?, ?, ?, ?, 'open', ?)
+            INSERT INTO jobs (client_id, title, description, budget, status, image_path, created_at)
+            VALUES (?, ?, ?, ?, 'open', ?, ?)
         ");
         
         $stmt->execute([
@@ -138,6 +140,7 @@ function handleCreateJob() {
             trim($data['title']),
             trim($data['description']),
             $data['budget'],
+            $imagePath,
             getCurrentTimestamp()
         ]);
         
