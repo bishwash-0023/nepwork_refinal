@@ -24,20 +24,50 @@ require_once __DIR__ . '/core/helpers.php';
 // Get request method and path
 $method = $_SERVER['REQUEST_METHOD'];
 $requestUri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-// Normalize path by removing script name if running through XAMPP or similar
-$scriptName = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME']));
+
+// Log request arrival to console
+file_put_contents('php://stderr', "[" . date('Y-m-d H:i:s') . "] --> $method $requestUri" . PHP_EOL);
+
+// Normalize path
 $path = $requestUri;
-if ($scriptName !== '/' && $scriptName !== '.') {
-    if (strpos($path, $scriptName) === 0) {
-        $path = substr($path, strlen($scriptName));
+// If script name is something like /backend/index.php, strip /backend/
+$scriptDir = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME']));
+if ($scriptDir !== '/' && $scriptDir !== '.') {
+    if (strpos($path, $scriptDir) === 0) {
+        $path = substr($path, strlen($scriptDir));
     }
 }
-$path = str_replace('/api', '', $path);
+
+// Remove /api prefix if present but DON'T trim too aggressively
+if (strpos($path, '/api/') === 0) {
+    $path = substr($path, 4);
+}
+if (strpos($path, 'api/') === 0) {
+    $path = substr($path, 4);
+}
+
 $path = trim($path, '/');
+
+// Log resolved path
+file_put_contents('php://stderr', "[" . date('Y-m-d H:i:s') . "] Resolved Path: $path" . PHP_EOL);
 
 // Route handling
 try {
-    // Auth routes
+    // 1. Static file serving for uploads (Prioritized)
+    if (preg_match('/^storage\/uploads\/(.+)$/', $path, $matches) && $method === 'GET') {
+        $relativePath = $matches[1];
+        $filePath = __DIR__ . '/storage/uploads/' . $relativePath;
+
+        if (file_exists($filePath) && is_file($filePath)) {
+            $mimeType = mime_content_type($filePath);
+            header('Content-Type: ' . $mimeType);
+            header('Content-Length: ' . filesize($filePath));
+            readfile($filePath);
+            exit();
+        }
+    }
+
+    // 2. Auth routes
     if ($path === 'auth/register' && $method === 'POST') {
         require_once __DIR__ . '/routes/auth.php';
         handleRegister();
@@ -57,6 +87,11 @@ try {
     elseif ($path === 'jobs' && $method === 'GET') {
         require_once __DIR__ . '/routes/jobs.php';
         handleGetJobs();
+    }
+
+    elseif ($path === 'jobs/my' && $method === 'GET') {
+        require_once __DIR__ . '/routes/jobs.php';
+        handleGetMyJobs();
     }
 
     elseif ($path === 'jobs' && $method === 'POST') {
@@ -117,6 +152,22 @@ try {
         handleGetUserReviews($matches[1]);
     }
 
+    // Applications routes
+    elseif ($path === 'applications' && $method === 'POST') {
+        require_once __DIR__ . '/routes/applications.php';
+        handleCreateApplication();
+    }
+
+    elseif (preg_match('/^applications\/job\/(\d+)$/', $path, $matches) && $method === 'GET') {
+        require_once __DIR__ . '/routes/applications.php';
+        handleGetJobApplications($matches[1]);
+    }
+
+    elseif (preg_match('/^applications\/(\d+)$/', $path, $matches) && $method === 'GET') {
+        require_once __DIR__ . '/routes/applications.php';
+        handleGetApplicationDetails($matches[1]);
+    }
+
     // Admin routes
     elseif ($path === 'admin/users' && $method === 'GET') {
         require_once __DIR__ . '/routes/admin.php';
@@ -149,23 +200,6 @@ try {
         handleDeleteImage();
     }
 
-    // Static file serving for uploads
-    elseif (preg_match('/^storage\/uploads\/(.+)$/', $path, $matches) && $method === 'GET') {
-        $relativePath = $matches[1];
-        $filePath = __DIR__ . '/storage/uploads/' . $relativePath;
-
-        if (file_exists($filePath) && is_file($filePath)) {
-            $mimeType = mime_content_type($filePath);
-            header('Content-Type: ' . $mimeType);
-            header('Content-Length: ' . filesize($filePath));
-            readfile($filePath);
-            exit();
-        }
-        else {
-            sendNotFound('File not found: ' . $path);
-        }
-    }
-
     // 404 - Route not found
     else {
         sendNotFound('API endpoint not found');
@@ -174,6 +208,6 @@ try {
 
 }
 catch (Exception $e) {
-    error_log("API Error: " . $e->getMessage());
-    sendError('Internal server error', 500);
+    file_put_contents('php://stderr', "[" . date('Y-m-d H:i:s') . "] !!! UNCAUGHT EXCEPTION: " . $e->getMessage() . PHP_EOL . $e->getTraceAsString() . PHP_EOL);
+    sendError('Internal server error: ' . $e->getMessage(), 500);
 }

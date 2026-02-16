@@ -1,182 +1,174 @@
 <?php
 /**
- * Database Migration Script
- * Creates tables and seeds initial data
+ * Unified Database Migration Script
+ * Handles initial schema setup and incremental versioned migrations.
  */
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../core/helpers.php';
 
-function runMigration() {
-    // Ensure database directory exists for SQLite
+function runMigration()
+{
+    // 1. Ensure database directory and file exist
     if (DB_DRIVER === 'sqlite') {
         $dbPath = DB_DATABASE;
         $dbDir = dirname($dbPath);
         if (!is_dir($dbDir)) {
             mkdir($dbDir, 0755, true);
         }
-        // Remove existing database if it's corrupted (optional - comment out if you want to keep data)
-        // if (file_exists($dbPath) && filesize($dbPath) === 0) {
-        //     unlink($dbPath);
-        // }
+        if (!file_exists($dbPath)) {
+            touch($dbPath);
+            echo "📁 Created new SQLite database file: $dbPath\n";
+        }
     }
-    
+
     $pdo = getDbConnection();
-    
+
     try {
         // Enable foreign keys for SQLite
         if (DB_DRIVER === 'sqlite') {
             $pdo->exec("PRAGMA foreign_keys = ON");
         }
-        
-        // Read schema file
-        $schema = file_get_contents(__DIR__ . '/schema.sql');
-        
-        // Remove comments and split by semicolon
-        $lines = explode("\n", $schema);
-        $cleanedLines = [];
-        foreach ($lines as $line) {
-            $line = trim($line);
-            // Skip empty lines and comments
-            if (empty($line) || strpos($line, '--') === 0) {
-                continue;
-            }
-            $cleanedLines[] = $line;
+
+        // 2. Initial Schema Setup (idempotent)
+        echo "📜 Running initial schema from schema.sql...\n";
+        executeSqlFile($pdo, __DIR__ . '/schema.sql');
+
+        // 3. Versioned Migrations
+        $migrationsDir = __DIR__ . '/migrations';
+        if (!is_dir($migrationsDir)) {
+            mkdir($migrationsDir, 0755, true);
         }
-        
-        $fullSchema = implode(' ', $cleanedLines);
-        
-        // Split by semicolon but keep multi-line statements together
-        $statements = array_filter(
-            array_map('trim', explode(';', $fullSchema)),
-            function($stmt) {
-                return !empty($stmt);
-            }
-        );
-        
-        $pdo->beginTransaction();
-        
-        $statementCount = 0;
-        foreach ($statements as $statement) {
-            $statement = trim($statement);
-            if (!empty($statement)) {
-                $statementCount++;
+
+        $migrationFiles = glob($migrationsDir . '/migration_*.php');
+        sort($migrationFiles); // Ensure they run in order
+
+        if (empty($migrationFiles)) {
+            echo "ℹ️ No incremental migration files found in migrations/.\n";
+        }
+        else {
+            foreach ($migrationFiles as $file) {
+                $migrationName = basename($file);
+
+                // Check if already executed
+                $stmt = $pdo->prepare("SELECT id FROM migrations WHERE migration_name = ?");
+                $stmt->execute([$migrationName]);
+
+                if ($stmt->fetch()) {
+                    echo "  ⊙ $migrationName already executed, skipping.\n";
+                    continue;
+                }
+
+                echo "🚀 Executing migration: $migrationName...\n";
+
+                // Wrap in transaction for safety
+                $pdo->beginTransaction();
                 try {
-                    $pdo->exec($statement);
-                    echo "  ✓ Executed statement $statementCount\n";
-                } catch (PDOException $e) {
-                    // Ignore "table already exists" and "index already exists" errors
-                    $errorMsg = $e->getMessage();
-                    if (strpos($errorMsg, 'already exists') !== false || 
-                        strpos($errorMsg, 'duplicate') !== false ||
-                        strpos($errorMsg, 'UNIQUE constraint failed') !== false) {
-                        echo "  ⊙ Statement $statementCount already exists, skipping\n";
-                        continue;
+                    // Include and run migration
+                    // Expectations: the file should define a function run() or just execute code.
+                    // To be safe, we'll just require it. The migration files should handle their own logic.
+                    require $file;
+
+                    // Specific check: if the migration file defines a 'up' function, call it
+                    if (function_exists('up')) {
+                        up($pdo);
+                    // Rename the function so it doesn't collide with next migration
+                    // (PHP doesn't allow this, so migrations should ideally not define global functions with common names)
                     }
-                    // For other errors, show which statement failed
-                    echo "  ✗ Error in statement $statementCount:\n";
-                    echo "    " . substr($statement, 0, 100) . "...\n";
-                    echo "    Error: " . $errorMsg . "\n";
+
+                    // Record migration
+                    $stmt = $pdo->prepare("INSERT INTO migrations (migration_name) VALUES (?)");
+                    $stmt->execute([$migrationName]);
+
+                    $pdo->commit();
+                    echo "  ✓ $migrationName completed successfully.\n";
+                }
+                catch (Exception $e) {
+                    $pdo->rollBack();
+                    echo "  ✗ $migrationName failed: " . $e->getMessage() . "\n";
                     throw $e;
                 }
             }
         }
-        
-        $pdo->commit();
-        echo "  ✓ All $statementCount statements executed successfully\n";
-        
-        echo "Database migration completed successfully!\n";
-        
-        // Ask if user wants to seed data
+
+        echo "🎉 Database is up to date!\n";
+
+        // 4. Seeding Check
         echo "Do you want to seed sample data? (y/n): ";
         $handle = fopen("php://stdin", "r");
         $line = fgets($handle);
         fclose($handle);
-        
+
         if (trim(strtolower($line)) === 'y') {
-            seedDatabase();
+            seedDatabase($pdo);
         }
-        
-    } catch (Exception $e) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
-        echo "Migration failed: " . $e->getMessage() . "\n";
-        echo "Stack trace: " . $e->getTraceAsString() . "\n";
+
+    }
+    catch (Exception $e) {
+        echo "❌ Migration failed: " . $e->getMessage() . "\n";
         exit(1);
     }
 }
 
-function seedDatabase() {
-    $pdo = getDbConnection();
-    
-    try {
-        // Check if users table exists and has data
-        try {
-            $stmt = $pdo->query("SELECT COUNT(*) as count FROM users");
-            $result = $stmt->fetch();
-            
-            if ($result && $result['count'] > 0) {
-                echo "Database already has data. Skipping seed.\n";
-                return;
-            }
-        } catch (PDOException $e) {
-            // Table doesn't exist, that's fine - we'll create the data
-            echo "Note: Users table check failed, proceeding with seed...\n";
-        }
-        
-        // Read seed file
-        $seed = file_get_contents(__DIR__ . '/seed.sql');
-        
-        // Hash passwords properly
-        $password = password_hash('password123', PASSWORD_DEFAULT);
-        
-        // Replace password placeholder with actual hash
-        $seed = str_replace('$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', $password, $seed);
-        
-        // Remove comments and clean up
-        $lines = explode("\n", $seed);
-        $cleanedLines = [];
-        foreach ($lines as $line) {
-            $line = trim($line);
-            if (empty($line) || strpos($line, '--') === 0) {
-                continue;
-            }
-            $cleanedLines[] = $line;
-        }
-        
-        $fullSeed = implode(' ', $cleanedLines);
-        
-        // Split and execute
-        $statements = array_filter(
-            array_map('trim', explode(';', $fullSeed)),
-            function($stmt) {
-                return !empty($stmt);
-            }
-        );
-        
-        $pdo->beginTransaction();
-        
-        foreach ($statements as $statement) {
-            $statement = trim($statement);
-            if (!empty($statement)) {
-                $pdo->exec($statement);
-            }
-        }
-        
-        $pdo->commit();
-        
-        echo "Database seeded successfully!\n";
-        echo "Default password for all users: password123\n";
-        
-    } catch (Exception $e) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
-        echo "Seeding failed: " . $e->getMessage() . "\n";
+function executeSqlFile($pdo, $filePath)
+{
+    if (!file_exists($filePath)) {
+        throw new Exception("SQL file not found: $filePath");
+    }
+
+    $sql = file_get_contents($filePath);
+
+    // Simple parser: split by semicolon, ignoring those inside quotes if possible 
+    // (for schema.sql we assume it's well-formatted)
+    $statements = array_filter(
+        array_map('trim', explode(';', $sql)),
+        function ($stmt) {
+        return !empty($stmt);
+    }
+    );
+
+    foreach ($statements as $stmt) {
+        $pdo->exec($stmt);
     }
 }
 
-// Run migration
-runMigration();
+function seedDatabase($pdo)
+{
+    try {
+        // Check for existing users to avoid double seeding
+        $stmt = $pdo->query("SELECT COUNT(*) as count FROM users");
+        if ($stmt->fetch()['count'] > 0) {
+            echo "⚠️ Database already has data. Skipping seed.\n";
+            return;
+        }
 
+        $seedFile = __DIR__ . '/seed.sql';
+        if (!file_exists($seedFile))
+            return;
+
+        $seedSql = file_get_contents($seedFile);
+        $password = password_hash('password123', PASSWORD_DEFAULT);
+        $seedSql = str_replace('$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', $password, $seedSql);
+
+        $statements = array_filter(
+            array_map('trim', explode(';', $seedSql)),
+            function ($stmt) {
+            return !empty($stmt);
+        }
+        );
+
+        $pdo->beginTransaction();
+        foreach ($statements as $stmt) {
+            $pdo->exec($stmt);
+        }
+        $pdo->commit();
+        echo "✅ Database seeded successfully!\n";
+    }
+    catch (Exception $e) {
+        if ($pdo->inTransaction())
+            $pdo->rollBack();
+        echo "❌ Seeding failed: " . $e->getMessage() . "\n";
+    }
+}
+
+runMigration();
