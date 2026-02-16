@@ -20,7 +20,7 @@ export default function JobsPage() {
     setMounted(true);
     const authStatus = isAuthenticated();
     setAuthenticated(authStatus);
-    
+
     if (!authStatus) {
       router.push('/login');
     }
@@ -60,7 +60,9 @@ export default function JobsPage() {
               {job.image_path && (
                 <div className="w-full h-48 overflow-hidden">
                   <img
-                    src={job.image_path.startsWith('http') ? job.image_path : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5135'}/api/${job.image_path}`}
+                    src={job.image_path.startsWith('http')
+                      ? job.image_path
+                      : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5135'}/${job.image_path.startsWith('/') ? job.image_path.substring(1) : job.image_path}`}
                     alt={job.title}
                     className="w-full h-full object-cover"
                   />

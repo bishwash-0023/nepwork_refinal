@@ -98,7 +98,13 @@ export default function JobDetailPage() {
   const getImageUrl = (imagePath) => {
     if (!imagePath) return null;
     if (imagePath.startsWith('http')) return imagePath;
-    return `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5135'}/api/${imagePath}`;
+
+    // Ensure path starts correctly
+    const cleanPath = imagePath.startsWith('/') ? imagePath.substring(1) : imagePath;
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5135';
+
+    // Static files are served from the root, not /api/
+    return `${apiUrl}/${cleanPath}`;
   };
 
   return (
