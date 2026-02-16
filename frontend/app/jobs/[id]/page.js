@@ -26,7 +26,8 @@ import {
   Send,
   FileText,
   UserCheck,
-  ClipboardCheck
+  ClipboardCheck,
+  AlertCircle
 } from 'lucide-react';
 
 import Link from 'next/link';
@@ -194,17 +195,28 @@ export default function JobDetailPage() {
               </div>
             </div>
 
-            {job.image_path && (
-              <div className="md:col-span-2 animate-scale-in">
-                <div className="aspect-[16/10] bg-muted rounded-3xl overflow-hidden shadow-2xl border-4 border-background rotate-1">
+            <div className="md:col-span-2 animate-scale-in">
+              <div className="aspect-[16/10] bg-gradient-to-br from-primary/10 to-primary/5 rounded-3xl overflow-hidden shadow-2xl border-4 border-background rotate-1 flex items-center justify-center relative">
+                {job.image_path ? (
                   <img
                     src={getImageUrl(job.image_path)}
                     alt={job.title}
                     className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                      e.target.nextSibling.style.display = 'flex';
+                    }}
                   />
+                ) : null}
+                <div
+                  className="flex flex-col items-center justify-center text-primary/20"
+                  style={{ display: job.image_path ? 'none' : 'flex' }}
+                >
+                  <Briefcase className="h-20 w-20 mb-2" />
+                  <span className="text-xs font-bold uppercase tracking-widest">Project Preview</span>
                 </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
       </div>
@@ -264,10 +276,47 @@ export default function JobDetailPage() {
             {role === 'freelancer' && job.status === 'open' && (
               <Card className="rounded-3xl border-2 border-primary/20 bg-primary/5 shadow-lg overflow-hidden">
                 <CardHeader className="bg-primary/5 border-b py-4">
-                  <CardTitle className="text-xl font-extrabold text-primary">Apply Now</CardTitle>
+                  <CardTitle className="text-xl font-extrabold text-primary">
+                    {job.my_application ? 'Application Status' : 'Apply Now'}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="p-6">
-                  {!showAppForm ? (
+                  {job.my_application && !showAppForm ? (
+                    <div className="space-y-6 text-center py-4">
+                      <div className={`h-20 w-20 rounded-2xl shadow-sm border flex items-center justify-center mx-auto mb-4 
+                        ${job.my_application.status === 'accepted' ? 'bg-green-100 text-green-600' :
+                          job.my_application.status === 'rejected' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+                        {job.my_application.status === 'accepted' ? <UserCheck className="h-10 w-10" /> :
+                          job.my_application.status === 'rejected' ? <AlertCircle className="h-10 w-10" /> : <Clock className="h-10 w-10" />}
+                      </div>
+
+                      <div>
+                        <Badge className={`mb-2 px-3 py-1 text-sm font-bold uppercase ${job.my_application.status === 'accepted' ? 'bg-green-500' :
+                          job.my_application.status === 'rejected' ? 'bg-red-500' : 'bg-blue-500'
+                          }`}>
+                          {job.my_application.status}
+                        </Badge>
+                        <p className="text-sm text-muted-foreground mt-2 px-4">
+                          {job.my_application.status === 'pending' && "Your application is currently being reviewed by the client."}
+                          {job.my_application.status === 'accepted' && "Congratulations! Your application has been accepted. The client will contact you soon."}
+                          {job.my_application.status === 'rejected' && "Your application was not selected for this role."}
+                        </p>
+                      </div>
+
+                      {job.my_application.feedback && (
+                        <div className="bg-background/80 p-4 rounded-2xl border text-left space-y-2">
+                          <p className="text-xs font-bold uppercase text-muted-foreground">Feedback from Client</p>
+                          <p className="text-sm italic">"{job.my_application.feedback}"</p>
+                        </div>
+                      )}
+
+                      {job.my_application.status === 'rejected' && job.my_application.allow_reapply === 1 && (
+                        <Button onClick={() => setShowAppForm(true)} className="w-full rounded-2xl py-6 shadow-glow font-bold mt-4">
+                          Re-apply for this Job
+                        </Button>
+                      )}
+                    </div>
+                  ) : !showAppForm ? (
                     <div className="space-y-4 text-center py-4">
                       <div className="h-16 w-16 bg-white rounded-2xl shadow-sm border flex items-center justify-center mx-auto mb-4">
                         <FileText className="h-8 w-8 text-primary" />
@@ -314,7 +363,7 @@ export default function JobDetailPage() {
 
                       <div className="flex flex-col gap-3">
                         <Button type="submit" className="w-full rounded-2xl py-6 shadow-glow font-bold">
-                          Submit Application
+                          {job.my_application ? 'Submit New Application' : 'Submit Application'}
                         </Button>
                         <Button
                           type="button"

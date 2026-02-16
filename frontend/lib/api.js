@@ -61,6 +61,7 @@ export const applicationsAPI = {
   create: (data) => api.post('/applications', data),
   getJobApplications: (jobId) => api.get(`/applications/job/${jobId}`),
   getById: (id) => api.get(`/applications/${id}`),
+  updateStatus: (id, data) => api.put(`/applications/${id}/status`, data),
 };
 
 // Proposals API

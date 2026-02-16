@@ -168,6 +168,11 @@ try {
         handleGetApplicationDetails($matches[1]);
     }
 
+    elseif (preg_match('/^applications\/(\d+)\/status$/', $path, $matches) && $method === 'PUT') {
+        require_once __DIR__ . '/routes/applications.php';
+        handleUpdateApplicationStatus($matches[1]);
+    }
+
     // Admin routes
     elseif ($path === 'admin/users' && $method === 'GET') {
         require_once __DIR__ . '/routes/admin.php';

@@ -49,10 +49,18 @@ function handleCreateApplication()
         }
 
         // Check if already applied
-        $stmt = $pdo->prepare("SELECT id FROM applications WHERE job_id = ? AND user_id = ?");
+        $stmt = $pdo->prepare("SELECT id, status, allow_reapply FROM applications WHERE job_id = ? AND user_id = ?");
         $stmt->execute([$data['job_id'], $user['user_id']]);
-        if ($stmt->fetch()) {
-            sendError('You have already applied for this job', 409);
+        $existing = $stmt->fetch();
+
+        if ($existing) {
+            if ($existing['status'] === 'rejected' && $existing['allow_reapply']) {
+                // Allow re-applying: delete old application and details (cascades)
+                $pdo->prepare("DELETE FROM applications WHERE id = ?")->execute([$existing['id']]);
+            }
+            else {
+                sendError('You have already applied for this job', 409);
+            }
         }
 
         $pdo->beginTransaction();
@@ -182,5 +190,78 @@ function handleGetApplicationDetails($applicationId)
     catch (PDOException $e) {
         error_log("Get application details error: " . $e->getMessage());
         sendError('Failed to fetch details', 500);
+    }
+}
+
+/**
+ * Update application status
+ */
+function handleUpdateApplicationStatus($applicationId)
+{
+    $user = requireRole(['client', 'admin']);
+
+    $data = getJsonBody();
+
+    if (!isset($data['status'])) {
+        sendError('Status is required');
+    }
+
+    $pdo = getDbConnection();
+
+    try {
+        // Verify job ownership
+        $stmt = $pdo->prepare("
+            SELECT a.job_id, j.client_id 
+            FROM applications a
+            JOIN jobs j ON a.job_id = j.id
+            WHERE a.id = ?
+        ");
+        $stmt->execute([$applicationId]);
+        $app = $stmt->fetch();
+
+        if (!$app) {
+            sendNotFound('Application not found');
+        }
+
+        if ($app['client_id'] != $user['user_id'] && $user['role'] !== 'admin') {
+            sendForbidden('You can only update applications for your own jobs');
+        }
+
+        $pdo->beginTransaction();
+
+        // Update application
+        $stmt = $pdo->prepare("
+            UPDATE applications 
+            SET status = ?, feedback = ?, allow_reapply = ? 
+            WHERE id = ?
+        ");
+        $stmt->execute([
+            $data['status'],
+            $data['feedback'] ?? null,
+            isset($data['allow_reapply']) ? (int)$data['allow_reapply'] : 0,
+            $applicationId
+        ]);
+
+        // Auto-rejection logic: if accepted, reject all others for this job
+        if ($data['status'] === 'accepted') {
+            $stmt = $pdo->prepare("
+                UPDATE applications 
+                SET status = 'rejected', feedback = 'Another candidate was selected.' 
+                WHERE job_id = ? AND id != ? AND status = 'pending'
+            ");
+            $stmt->execute([$app['job_id'], $applicationId]);
+        }
+
+        $pdo->commit();
+
+        sendSuccess(null, 'Application status updated successfully');
+
+    }
+    catch (PDOException $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        error_log("Update application status error: " . $e->getMessage());
+        sendError('Failed to update application status: ' . $e->getMessage(), 500);
     }
 }

@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { applicationsAPI } from '@/lib/api';
 import { isAuthenticated } from '@/lib/auth';
+import { toast } from 'sonner';
 import {
     FileText,
     Download,
@@ -30,6 +31,9 @@ export default function DeepApplicationDetailsPage() {
     const params = useParams();
     const applicationId = params.id;
     const [mounted, setMounted] = useState(false);
+    const [feedback, setFeedback] = useState('');
+    const [allowReapply, setAllowReapply] = useState(false);
+    const [updating, setUpdating] = useState(false);
 
     useEffect(() => {
         setMounted(true);
@@ -88,6 +92,23 @@ export default function DeepApplicationDetailsPage() {
         return { label: 'Document', sub: ext.toUpperCase() + ' File', icon: <FileText />, color: 'bg-primary/10', text: 'text-primary' };
     };
 
+    const handleUpdateStatus = async (status) => {
+        setUpdating(true);
+        try {
+            await applicationsAPI.updateStatus(applicationId, {
+                status,
+                feedback,
+                allow_reapply: allowReapply
+            });
+            toast.success(`Application ${status} successfully`);
+            router.back();
+        } catch (error) {
+            toast.error(error.response?.data?.message || `Failed to ${status} application`);
+        } finally {
+            setUpdating(false);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-background pb-20">
             <Navbar />
@@ -127,7 +148,9 @@ export default function DeepApplicationDetailsPage() {
                         </div>
 
                         <div className="flex flex-col items-end gap-3">
-                            <Badge className="px-4 py-1 text-lg" variant="secondary">{app.status}</Badge>
+                            <Badge className="px-4 py-1 text-lg" variant={app.status === 'pending' ? 'secondary' : app.status === 'accepted' ? 'success' : 'destructive'}>
+                                {app.status}
+                            </Badge>
                             <p className="text-sm text-muted-foreground uppercase font-bold">Ref: APP-{app.id}</p>
                         </div>
                     </div>
@@ -157,6 +180,69 @@ export default function DeepApplicationDetailsPage() {
                                 <div className="prose prose-blue max-w-none text-muted-foreground leading-relaxed whitespace-pre-wrap">
                                     {app.additional_info}
                                 </div>
+                            </section>
+                        )}
+
+                        {/* Decision & Feedback Area */}
+                        {app.status === 'pending' && (
+                            <section className="bg-background p-8 rounded-3xl border-2 border-primary/20 shadow-xl space-y-6 animate-fade-in-up">
+                                <h3 className="text-2xl font-bold flex items-center">
+                                    <ShieldCheck className="h-6 w-6 mr-3 text-primary" />
+                                    Take Action
+                                </h3>
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="text-sm font-bold mb-2 block text-muted-foreground">Reviewer Feedback (Internal & Candidate visible)</label>
+                                        <textarea
+                                            placeholder="Write a message to the applicant about your decision..."
+                                            className="w-full h-32 p-4 rounded-xl border-2 bg-muted/20 focus:bg-background focus:ring-4 focus:ring-primary/10 transition-all outline-none"
+                                            value={feedback}
+                                            onChange={(e) => setFeedback(e.target.value)}
+                                        />
+                                    </div>
+
+                                    <div className="flex items-center gap-10">
+                                        <div className="flex items-center gap-3">
+                                            <input
+                                                type="checkbox"
+                                                id="allowReapply"
+                                                className="h-5 w-5 rounded border-2 text-primary focus:ring-primary"
+                                                checked={allowReapply}
+                                                onChange={(e) => setAllowReapply(e.target.checked)}
+                                            />
+                                            <label htmlFor="allowReapply" className="text-sm font-medium cursor-pointer">Allow candidate to re-apply if rejected</label>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-4 pt-4 border-t">
+                                        <Button
+                                            onClick={() => handleUpdateStatus('accepted')}
+                                            disabled={updating}
+                                            className="flex-1 rounded-2xl py-7 shadow-glow text-lg font-bold"
+                                        >
+                                            Accept Candidate
+                                        </Button>
+                                        <Button
+                                            onClick={() => handleUpdateStatus('rejected')}
+                                            disabled={updating}
+                                            variant="destructive"
+                                            className="flex-1 rounded-2xl py-7 text-lg font-bold"
+                                        >
+                                            Reject Candidate
+                                        </Button>
+                                    </div>
+                                </div>
+                            </section>
+                        )}
+
+                        {app.status !== 'pending' && (
+                            <section className="bg-muted/30 p-8 rounded-3xl border border-dashed text-center space-y-4">
+                                <p className="text-muted-foreground font-medium">This application has already been processed with status: <Badge className="ml-2 uppercase">{app.status}</Badge></p>
+                                {app.feedback && (
+                                    <div className="text-left bg-background p-6 rounded-2xl border italic text-muted-foreground">
+                                        "{app.feedback}"
+                                    </div>
+                                )}
                             </section>
                         )}
                     </div>
@@ -212,12 +298,6 @@ export default function DeepApplicationDetailsPage() {
                                 <p className="text-xs text-muted-foreground leading-relaxed">
                                     This applicant has passed initial verification and is eligible for hire on this platform.
                                 </p>
-                                <Button className="w-full rounded-xl shadow-glow">
-                                    Schedule Interview
-                                </Button>
-                                <Button variant="outline" className="w-full rounded-xl">
-                                    Reject Application
-                                </Button>
                             </CardContent>
                         </Card>
                     </div>

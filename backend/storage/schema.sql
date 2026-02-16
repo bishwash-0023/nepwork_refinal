@@ -70,6 +70,8 @@ CREATE TABLE IF NOT EXISTS applications (
     job_id INTEGER NOT NULL,
     user_id INTEGER NOT NULL,
     status VARCHAR(20) DEFAULT 'pending',
+    feedback TEXT,
+    allow_reapply BOOLEAN DEFAULT 0,
     created_at DATETIME NOT NULL,
     FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE

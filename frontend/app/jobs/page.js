@@ -114,8 +114,7 @@ export default function JobsPage() {
             {jobs.map((job) => (
               <Card key={job.id} className="group hover:border-primary/30 transition-all duration-300 hover:shadow-xl border-2 border-muted/50 rounded-xl overflow-hidden animate-fade-in-up">
                 <div className="flex flex-col md:flex-row">
-                  {/* Image Section */}
-                  <div className="w-full md:w-60 h-48 md:h-auto bg-muted/30 relative overflow-hidden flex items-center justify-center">
+                  <div className="w-full md:w-60 h-48 md:h-auto bg-gradient-to-br from-muted to-muted/50 relative overflow-hidden flex items-center justify-center">
                     {job.image_path ? (
                       <img
                         src={job.image_path.startsWith('http')
@@ -123,10 +122,19 @@ export default function JobsPage() {
                           : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5135'}/${job.image_path.startsWith('/') ? job.image_path.substring(1) : job.image_path}`}
                         alt={job.title}
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.nextSibling.style.display = 'flex';
+                        }}
                       />
-                    ) : (
-                      <Briefcase className="h-12 w-12 text-muted-foreground/30" />
-                    )}
+                    ) : null}
+                    <div
+                      className="flex flex-col items-center justify-center text-muted-foreground/30"
+                      style={{ display: job.image_path ? 'none' : 'flex' }}
+                    >
+                      <Briefcase className="h-10 w-10 mb-1" />
+                      <span className="text-[10px] uppercase font-bold tracking-tighter">No Preview</span>
+                    </div>
                     <Badge className="absolute top-3 right-3 bg-background/80 backdrop-blur-sm text-foreground hover:bg-background/90" variant="outline">
                       {job.status}
                     </Badge>

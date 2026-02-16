@@ -103,6 +103,19 @@ function handleGetJob($jobId)
             sendNotFound('Job not found');
         }
 
+        // Check if current user has applied
+        $user = getAuthenticatedUser();
+        $job['my_application'] = null;
+
+        if ($user) {
+            $stmt = $pdo->prepare("SELECT id, status, feedback, allow_reapply FROM applications WHERE job_id = ? AND user_id = ?");
+            $stmt->execute([$jobId, $user['user_id']]);
+            $myApp = $stmt->fetch();
+            if ($myApp) {
+                $job['my_application'] = $myApp;
+            }
+        }
+
         sendSuccess($job);
 
     }
