@@ -54,16 +54,19 @@ file_put_contents('php://stderr', "[" . date('Y-m-d H:i:s') . "] Resolved Path: 
 // Route handling
 try {
     // 1. Static file serving for uploads (Prioritized)
-    if (preg_match('/^storage\/uploads\/(.+)$/', $path, $matches) && $method === 'GET') {
-        $relativePath = $matches[1];
-        $filePath = __DIR__ . '/storage/uploads/' . $relativePath;
+    if (strpos($path, 'storage/uploads/') === 0 && $method === 'GET') {
+        $filePath = __DIR__ . '/' . $path;
 
         if (file_exists($filePath) && is_file($filePath)) {
             $mimeType = mime_content_type($filePath);
             header('Content-Type: ' . $mimeType);
             header('Content-Length: ' . filesize($filePath));
+            header('Cache-Control: public, max-age=3600');
             readfile($filePath);
             exit();
+        }
+        else {
+            file_put_contents('php://stderr', "[" . date('Y-m-d H:i:s') . "] Static File NOT FOUND: $filePath" . PHP_EOL);
         }
     }
 
@@ -173,6 +176,32 @@ try {
         handleUpdateApplicationStatus($matches[1]);
     }
 
+    // Question routes
+    elseif ($path === 'questions' && $method === 'POST') {
+        require_once __DIR__ . '/routes/questions.php';
+        handleCreateQuestion();
+    }
+    elseif (preg_match('/^questions\/job\/(\d+)$/', $path, $matches) && $method === 'GET') {
+        require_once __DIR__ . '/routes/questions.php';
+        handleGetJobQuestions($matches[1]);
+    }
+    elseif (preg_match('/^questions\/(\d+)\/answer$/', $path, $matches) && $method === 'PUT') {
+        require_once __DIR__ . '/routes/questions.php';
+        handleAnswerQuestion($matches[1]);
+    }
+    elseif (preg_match('/^questions\/(\d+)\/react$/', $path, $matches) && $method === 'POST') {
+        require_once __DIR__ . '/routes/questions.php';
+        handleReactToQuestion($matches[1]);
+    }
+    elseif (preg_match('/^questions\/(\d+)$/', $path, $matches) && $method === 'DELETE') {
+        require_once __DIR__ . '/routes/questions.php';
+        handleDeleteQuestion($matches[1]);
+    }
+    elseif ($path === 'questions/my' && $method === 'GET') {
+        require_once __DIR__ . '/routes/questions.php';
+        handleGetMyJobQuestions();
+    }
+
     // Admin routes
     elseif ($path === 'admin/users' && $method === 'GET') {
         require_once __DIR__ . '/routes/admin.php';
@@ -214,5 +243,5 @@ try {
 }
 catch (Exception $e) {
     file_put_contents('php://stderr', "[" . date('Y-m-d H:i:s') . "] !!! UNCAUGHT EXCEPTION: " . $e->getMessage() . PHP_EOL . $e->getTraceAsString() . PHP_EOL);
-    sendError('Internal server error: ' . $e->getMessage(), 500);
+    sendError('Internal server error: ' . $e->getMessage(), 500, $e->getTraceAsString());
 }
