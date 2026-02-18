@@ -64,6 +64,16 @@ export const applicationsAPI = {
   updateStatus: (id, data) => api.put(`/applications/${id}/status`, data),
 };
 
+// Questions API
+export const questionsAPI = {
+  create: (data) => api.post('/questions', data),
+  getByJob: (jobId) => api.get(`/questions/job/${jobId}`),
+  answer: (id, answer) => api.put(`/questions/${id}/answer`, { answer }),
+  react: (id, type, target) => api.post(`/questions/${id}/react`, { type, target }),
+  delete: (id) => api.delete(`/questions/${id}`),
+  getMyJobQuestions: () => api.get('/questions/my'),
+};
+
 // Proposals API
 export const proposalsAPI = {
   create: (data) => api.post('/proposals', data),

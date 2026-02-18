@@ -40,7 +40,7 @@ export default function Navbar() {
         <div className="flex items-center gap-8">
           <Link href="/dashboard" className="flex items-center space-x-2">
             <span className="text-xl font-bold bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-transparent">
-              Freelance Platform
+              Nepwork
             </span>
           </Link>
 
@@ -63,6 +63,11 @@ export default function Navbar() {
                   </Button>
                 </Link>
               )}
+              <Link href="/my-jobs/questions">
+                <Button variant="ghost" className="text-sm font-medium">
+                  Questions
+                </Button>
+              </Link>
               {role === 'admin' && (
                 <Link href="/admin">
                   <Button variant="ghost" className="text-sm font-medium">

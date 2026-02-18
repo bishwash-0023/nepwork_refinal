@@ -7,7 +7,7 @@ import Navbar from '@/components/layout/navbar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { jobsAPI, proposalsAPI, messagesAPI, applicationsAPI } from '@/lib/api';
+import { jobsAPI, proposalsAPI, messagesAPI, applicationsAPI, questionsAPI } from '@/lib/api';
 import useSWR from 'swr';
 import { toast } from 'sonner';
 
@@ -19,15 +19,22 @@ import {
   Calendar,
   DollarSign,
   ShieldCheck,
+  AlertCircle,
   MessageSquare,
-  Briefcase,
+  ThumbsUp,
+  ThumbsDown,
+  Lock,
+  Globe,
+  Trash2,
+  MoreVertical,
   User,
+  Briefcase,
+  MapPin,
   Clock,
   Send,
   FileText,
   UserCheck,
-  ClipboardCheck,
-  AlertCircle
+  ClipboardCheck
 } from 'lucide-react';
 
 import Link from 'next/link';
@@ -71,6 +78,23 @@ export default function JobDetailPage() {
     () => messagesAPI.getJobMessages(jobId)
   );
 
+  const { data: questionsData, mutate: mutateQuestions, isLoading: isLoadingQuestions } = useSWR(
+    jobId ? `/questions/job/${jobId}` : null,
+    () => questionsAPI.getByJob(jobId)
+  );
+
+  const [newQuestion, setNewQuestion] = useState('');
+  const [isPublic, setIsPublic] = useState(true);
+  const [submittingQuestion, setSubmittingQuestion] = useState(false);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    if (mounted) {
+      const u = JSON.parse(localStorage.getItem('user'));
+      setUser(u);
+    }
+  }, [mounted]);
+
   const job = jobData?.data?.data;
 
   // Show loading during hydration
@@ -96,6 +120,59 @@ export default function JobDetailPage() {
       </div>
     );
   }
+
+  const handlePostQuestion = async () => {
+    if (!newQuestion.trim()) return;
+    setSubmittingQuestion(true);
+    try {
+      await questionsAPI.create({
+        job_id: jobId,
+        content: newQuestion,
+        is_public: isPublic
+      });
+      toast.success('Question posted successfully');
+      setNewQuestion('');
+      mutateQuestions();
+    } catch (error) {
+      toast.error('Failed to post question');
+    } finally {
+      setSubmittingQuestion(false);
+    }
+  };
+
+  const handlePostAnswer = async (qId, answer) => {
+    try {
+      await questionsAPI.answer(qId, answer);
+      toast.success('Answer posted successfully');
+      mutateQuestions();
+    } catch (error) {
+      toast.error('Failed to post answer');
+    }
+  };
+
+  const handleReact = async (qId, type, target) => {
+    try {
+      if (!isAuthenticated()) {
+        toast.error('Please login to react');
+        return;
+      }
+      await questionsAPI.react(qId, type, target);
+      mutateQuestions();
+    } catch (error) {
+      toast.error('Failed to react');
+    }
+  };
+
+  const handleDeleteQuestion = async (qId) => {
+    if (!confirm('Are you sure you want to delete this question?')) return;
+    try {
+      await questionsAPI.delete(qId);
+      toast.success('Question deleted');
+      mutateQuestions();
+    } catch (error) {
+      toast.error('Failed to delete question');
+    }
+  };
 
   const handleSubmitApplication = async (e) => {
     e.preventDefault();
@@ -379,6 +456,167 @@ export default function JobDetailPage() {
                 </CardContent>
               </Card>
             )}
+
+            {/* Questions Section */}
+            <div id="questions-section" className="space-y-8 pt-8 border-t mt-12 animate-fade-in animation-delay-700">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  <MessageSquare className="h-6 w-6 text-primary" />
+                  Questions & Discussions
+                </h2>
+                <Badge variant="outline" className="bg-primary/5 text-primary">
+                  {questionsData?.data?.data?.length || 0} Questions
+                </Badge>
+              </div>
+
+              {/* Ask a Question Form */}
+              {role === 'freelancer' && (
+                <Card className="rounded-3xl border-2 border-dashed border-primary/20 bg-primary/5 p-6 overflow-hidden">
+                  <div className="space-y-4">
+                    <h3 className="font-bold flex items-center gap-2 italic">
+                      Ask a Question
+                    </h3>
+                    <textarea
+                      className="w-full px-4 py-3 border rounded-2xl focus:ring-4 focus:ring-primary/10 transition-all outline-none bg-background min-h-[80px]"
+                      placeholder="Ask the hiring manager something about this job..."
+                      value={newQuestion}
+                      onChange={(e) => setNewQuestion(e.target.value)}
+                    />
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                      <div className="flex items-center gap-4 bg-background px-4 py-2 rounded-xl border">
+                        <span className="text-xs font-bold uppercase text-muted-foreground mr-2">Visibility:</span>
+                        <button
+                          onClick={() => setIsPublic(true)}
+                          className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all ${isPublic ? 'bg-primary text-primary-foreground shadow-sm' : 'hover:bg-muted'}`}
+                        >
+                          <Globe className="h-3 w-3" /> Public
+                        </button>
+                        <button
+                          onClick={() => setIsPublic(false)}
+                          className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all ${!isPublic ? 'bg-orange-500 text-white shadow-sm' : 'hover:bg-muted'}`}
+                        >
+                          <Lock className="h-3 w-3" /> Private
+                        </button>
+                      </div>
+                      <Button
+                        disabled={!newQuestion.trim() || submittingQuestion}
+                        onClick={handlePostQuestion}
+                        className="rounded-xl px-8 font-bold shadow-glow"
+                      >
+                        {submittingQuestion ? 'Posting...' : 'Post'}
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              )}
+
+              {/* Questions List */}
+              <div className="space-y-6">
+                {!questionsData && isLoadingQuestions ? (
+                  Array(2).fill(0).map((_, i) => <Skeleton key={i} className="h-32 w-full rounded-2xl" />)
+                ) : questionsData?.data?.data?.length === 0 ? (
+                  <div className="py-12 text-center text-muted-foreground bg-muted/5 rounded-3xl border-2 border-dashed">
+                    <MessageSquare className="h-10 w-10 mx-auto mb-2 opacity-20" />
+                    <p>No questions yet. Be the first to ask!</p>
+                  </div>
+                ) : (
+                  questionsData?.data?.data?.map((q) => (
+                    <div key={q.id} className="space-y-4 animate-fade-in-up">
+                      <div className={`p-6 rounded-3xl border-2 transition-all ${!q.is_public ? 'bg-orange-50/50 border-orange-100 shadow-sm' : 'bg-background hover:border-primary/20'}`}>
+                        <div className="flex justify-between items-start mb-4">
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-8 w-8">
+                              <AvatarFallback className="text-[10px] uppercase text-primary font-bold">{q.asker_name?.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-bold">{q.asker_name}</span>
+                                {!q.is_public && (
+                                  <Badge variant="outline" className="text-[9px] bg-orange-100 text-orange-700 border-orange-200 font-bold">PRIVATE</Badge>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-muted-foreground">{new Date(q.created_at).toLocaleString()}</span>
+                            </div>
+                          </div>
+                          {user?.id === q.user_id && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive rounded-full"
+                              onClick={() => handleDeleteQuestion(q.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                        <p className="text-sm font-medium leading-relaxed mb-4">{q.content}</p>
+
+                        <div className="flex items-center gap-4 pt-2 border-t mt-4 border-dashed">
+                          <button
+                            onClick={() => handleReact(q.id, 'like', 'question')}
+                            className="flex items-center gap-1.5 text-xs font-bold hover:text-primary transition-colors text-muted-foreground"
+                          >
+                            <ThumbsUp className="h-3.5 w-3.5" /> {q.question_likes || 0}
+                          </button>
+                          <button
+                            onClick={() => handleReact(q.id, 'dislike', 'question')}
+                            className="flex items-center gap-1.5 text-xs font-bold hover:text-destructive transition-colors text-muted-foreground"
+                          >
+                            <ThumbsDown className="h-3.5 w-3.5" /> {q.question_dislikes || 0}
+                          </button>
+                        </div>
+
+                        {/* Answer Section */}
+                        {q.answer && (
+                          <div className="mt-6 pl-6 border-l-4 border-primary/20 space-y-3">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Badge className="text-[9px] uppercase font-bold bg-primary/10 text-primary border-none">Reply from Hiring Manager</Badge>
+                              <span className="text-[10px] text-muted-foreground">{new Date(q.replied_at).toLocaleString()}</span>
+                            </div>
+                            <p className="text-sm italic text-muted-foreground leading-relaxed">"{q.answer}"</p>
+
+                            <div className="flex items-center gap-3 pt-1">
+                              <button
+                                onClick={() => handleReact(q.id, 'like', 'answer')}
+                                className="flex items-center gap-1 text-[10px] font-bold hover:text-primary transition-colors text-muted-foreground/60"
+                              >
+                                <ThumbsUp className="h-3 w-3 mr-1" /> helpful ({q.answer_likes || 0})
+                              </button>
+                              <button
+                                onClick={() => handleReact(q.id, 'dislike', 'answer')}
+                                className="flex items-center gap-1 text-[10px] font-bold hover:text-destructive transition-colors text-muted-foreground/60"
+                              >
+                                <ThumbsDown className="h-3 w-3 mr-1" /> not ({q.answer_dislikes || 0})
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {role === 'client' && user?.id === job.client_id && !q.answer && (
+                          <div className="mt-6 flex gap-2">
+                            <textarea
+                              className="flex-1 px-4 py-3 text-sm border rounded-2xl focus:ring-4 focus:ring-primary/10 outline-none bg-muted/20"
+                              placeholder="Post your reply..."
+                              id={`answer-${q.id}`}
+                            />
+                            <Button
+                              size="sm"
+                              className="rounded-2xl h-auto px-6 font-bold"
+                              onClick={() => {
+                                const ans = document.getElementById(`answer-${q.id}`).value;
+                                if (ans) handlePostAnswer(q.id, ans);
+                              }}
+                            >
+                              Post Result
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
 
             <Card className="rounded-3xl border shadow-sm overflow-hidden">
               <CardHeader className="py-4 border-b bg-muted/30">

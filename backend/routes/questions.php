@@ -3,7 +3,7 @@
  * Questions Route Handlers
  */
 
-require_once __DIR__ . '/../core/auth.php';
+require_once __DIR__ . '/../core/auth_middleware.php';
 require_once __DIR__ . '/../core/response.php';
 require_once __DIR__ . '/../core/helpers.php';
 

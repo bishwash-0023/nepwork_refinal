@@ -33,7 +33,7 @@ function loadEnv($path)
 loadEnv(__DIR__ . '/../.env');
 
 // App Configuration
-define('APP_NAME', getenv('APP_NAME') ?: 'Freelance Platform');
+define('APP_NAME', getenv('APP_NAME') ?: 'Nepwork');
 define('APP_URL', getenv('APP_URL') ?: 'http://localhost:3000');
 define('API_URL', getenv('API_URL') ?: 'http://localhost:5135');
 

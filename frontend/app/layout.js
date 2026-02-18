@@ -5,7 +5,7 @@ import { Toaster } from 'sonner';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata = {
-  title: 'Freelance Platform',
+  title: 'Nepwork',
   description: 'A modern freelancing marketplace',
 };
 

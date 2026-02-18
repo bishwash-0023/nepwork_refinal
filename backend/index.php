@@ -241,7 +241,11 @@ try {
 
 
 }
-catch (Exception $e) {
-    file_put_contents('php://stderr', "[" . date('Y-m-d H:i:s') . "] !!! UNCAUGHT EXCEPTION: " . $e->getMessage() . PHP_EOL . $e->getTraceAsString() . PHP_EOL);
-    sendError('Internal server error: ' . $e->getMessage(), 500, $e->getTraceAsString());
+catch (Throwable $e) {
+    file_put_contents('php://stderr', "[" . date('Y-m-d H:i:s') . "] !!! UNCAUGHT ERROR/EXCEPTION: " . $e->getMessage() . PHP_EOL . $e->getTraceAsString() . PHP_EOL);
+    sendError('Internal server error: ' . $e->getMessage(), 500, [
+        'trace' => $e->getTraceAsString(),
+        'file' => $e->getFile(),
+        'line' => $e->getLine()
+    ]);
 }
